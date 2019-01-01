@@ -15,7 +15,6 @@ namespace UnityStandardAssets.Characters.ThirdPerson
 		[SerializeField] float m_MoveSpeedMultiplier = 1f;
 		[SerializeField] float m_AnimSpeedMultiplier = 1f;
 		[SerializeField] float m_GroundCheckDistance = 0.1f;
-        [SerializeField] LayerMask groundMask = 8;
 
 		Rigidbody m_Rigidbody;
 		Animator m_Animator;
@@ -46,19 +45,13 @@ namespace UnityStandardAssets.Characters.ThirdPerson
 
 		public void Move(Vector3 move, bool crouch, bool jump)
 		{
-            
-			 //convert the world relative moveInput vector into a local-relative
-			 //turn amount and forward amount required to head in the desired
-			 //direction.
+
+			// convert the world relative moveInput vector into a local-relative
+			// turn amount and forward amount required to head in the desired
+			// direction.
 			if (move.magnitude > 1f) move.Normalize();
-
-
-            Vector3 moveWithoutProceed;
-            moveWithoutProceed = move;
 			move = transform.InverseTransformDirection(move);
 			CheckGroundStatus();
-
-
 			move = Vector3.ProjectOnPlane(move, m_GroundNormal);
 			m_TurnAmount = Mathf.Atan2(move.x, move.z);
 			m_ForwardAmount = move.z;
@@ -72,7 +65,7 @@ namespace UnityStandardAssets.Characters.ThirdPerson
 			}
 			else
 			{
-                HandleAirborneMovement(moveWithoutProceed);
+				HandleAirborneMovement();
 			}
 
 			ScaleCapsuleForCrouching(crouch);
@@ -96,7 +89,7 @@ namespace UnityStandardAssets.Characters.ThirdPerson
 			{
 				Ray crouchRay = new Ray(m_Rigidbody.position + Vector3.up * m_Capsule.radius * k_Half, Vector3.up);
 				float crouchRayLength = m_CapsuleHeight - m_Capsule.radius * k_Half;
-				if (Physics.SphereCast(crouchRay, m_Capsule.radius * k_Half, crouchRayLength, Physics.AllLayers, QueryTriggerInteraction.Ignore))
+				if (Physics.SphereCast(crouchRay, m_Capsule.radius * k_Half, crouchRayLength))
 				{
 					m_Crouching = true;
 					return;
@@ -114,7 +107,7 @@ namespace UnityStandardAssets.Characters.ThirdPerson
 			{
 				Ray crouchRay = new Ray(m_Rigidbody.position + Vector3.up * m_Capsule.radius * k_Half, Vector3.up);
 				float crouchRayLength = m_CapsuleHeight - m_Capsule.radius * k_Half;
-				if (Physics.SphereCast(crouchRay, m_Capsule.radius * k_Half, crouchRayLength, Physics.AllLayers, QueryTriggerInteraction.Ignore))
+				if (Physics.SphereCast(crouchRay, m_Capsule.radius * k_Half, crouchRayLength))
 				{
 					m_Crouching = true;
 				}
@@ -140,7 +133,6 @@ namespace UnityStandardAssets.Characters.ThirdPerson
 			float runCycle =
 				Mathf.Repeat(
 					m_Animator.GetCurrentAnimatorStateInfo(0).normalizedTime + m_RunCycleLegOffset, 1);
-            
 			float jumpLeg = (runCycle < k_Half ? 1 : -1) * m_ForwardAmount;
 			if (m_IsGrounded)
 			{
@@ -161,19 +153,13 @@ namespace UnityStandardAssets.Characters.ThirdPerson
 		}
 
 
-        void HandleAirborneMovement(Vector3 _move)
+		void HandleAirborneMovement()
 		{
 			// apply extra gravity from multiplier:
-            Vector3 extraGravityForce = (Physics.gravity * m_GravityMultiplier) - Physics.gravity;
+			Vector3 extraGravityForce = (Physics.gravity * m_GravityMultiplier) - Physics.gravity;
 			m_Rigidbody.AddForce(extraGravityForce);
-            bool isGround_collider = Physics.CheckSphere(transform.position + Vector3.up * 0.1f, m_GroundCheckDistance * 2, groundMask, QueryTriggerInteraction.UseGlobal);
 
-            if(!isGround_collider)
-            {
-                m_Rigidbody.velocity = new Vector3(_move.x * 5, m_Rigidbody.velocity.y, _move.z * 5);
-            }
-
-            m_GroundCheckDistance = m_Rigidbody.velocity.y < 0 ? m_OrigGroundCheckDistance : 0.01f;
+			m_GroundCheckDistance = m_Rigidbody.velocity.y < 0 ? m_OrigGroundCheckDistance : 0.01f;
 		}
 
 
@@ -215,30 +201,25 @@ namespace UnityStandardAssets.Characters.ThirdPerson
 
 		void CheckGroundStatus()
 		{
-			
+			RaycastHit hitInfo;
 #if UNITY_EDITOR
 			// helper to visualise the ground check ray in the scene view
-            Debug.DrawLine(transform.position + (Vector3.up * 0.1f), transform.position + (Vector3.up * 0.1f) + (Vector3.down * m_GroundCheckDistance),Color.red);
+			Debug.DrawLine(transform.position + (Vector3.up * 0.1f), transform.position + (Vector3.up * 0.1f) + (Vector3.down * m_GroundCheckDistance));
 #endif
-			
-            RaycastHit hitInfo;
-
-            bool isGround_collider = Physics.CheckSphere(transform.position + Vector3.up * 0.1f, m_GroundCheckDistance * 0.5f,groundMask,QueryTriggerInteraction.UseGlobal);
-            bool isGround_ray = Physics.Raycast(transform.position + (Vector3.up * 0.1f), Vector3.down, out hitInfo, m_GroundCheckDistance);
-            // || isGround_ray
-            if(isGround_collider)
-            {
-                
-                m_GroundNormal = hitInfo.normal;
-                m_IsGrounded = true;
-                m_Animator.applyRootMotion = true;
-            }
-            else
-            {
-                m_IsGrounded = false;
-                m_GroundNormal = Vector3.up;
-                m_Animator.applyRootMotion = false;
-            }
+			// 0.1f is a small offset to start the ray from inside the character
+			// it is also good to note that the transform position in the sample assets is at the base of the character
+			if (Physics.Raycast(transform.position + (Vector3.up * 0.1f), Vector3.down, out hitInfo, m_GroundCheckDistance))
+			{
+				m_GroundNormal = hitInfo.normal;
+				m_IsGrounded = true;
+				m_Animator.applyRootMotion = true;
+			}
+			else
+			{
+				m_IsGrounded = false;
+				m_GroundNormal = Vector3.up;
+				m_Animator.applyRootMotion = false;
+			}
 		}
 	}
 }
